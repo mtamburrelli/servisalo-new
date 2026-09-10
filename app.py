@@ -1,7 +1,7 @@
 import os
 from datetime import datetime, timezone
 
-from flask import Flask, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, jsonify, redirect, render_template, request, send_from_directory, session, url_for
 
 from admin_routes import register_admin_routes
 from auth_routes import (
@@ -64,6 +64,15 @@ def _render_public_catalog():
 
 
 # ——— Páginas ———
+
+@app.route("/favicon.ico")
+def favicon_ico():
+    return send_from_directory(
+        os.path.join(app.root_path, "static"),
+        "favicon.png",
+        mimetype="image/png",
+    )
+
 
 @app.route("/")
 def home():
