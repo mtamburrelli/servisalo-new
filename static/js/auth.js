@@ -1,8 +1,11 @@
 export async function fetchSession() {
-  const res = await fetch("/api/auth/me", { credentials: "same-origin" });
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data.authenticated ? data.user : null;
+  try {
+    const res = await fetch("/api/auth/me", { credentials: "same-origin" });
+    const data = await res.json().catch(() => ({}));
+    return data.authenticated ? data.user : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function isLoggedIn() {
@@ -11,15 +14,11 @@ export async function isLoggedIn() {
 }
 
 export async function requireAuth() {
-  const user = await fetchSession();
-  if (!user) {
-    window.location.href = "/login";
-    return null;
-  }
-  return user;
+  /* El catálogo es público. Nunca redirigir a /login desde aquí. */
+  return fetchSession();
 }
 
-export async function redirectIfLoggedIn(target = "/catalog") {
+export async function redirectIfLoggedIn(target = "/") {
   const user = await fetchSession();
   if (user) {
     window.location.href = target;

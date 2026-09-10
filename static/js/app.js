@@ -1,11 +1,23 @@
 import { createCart } from "./cart.js";
-import { requireAuth, logout } from "./auth.js";
+import { logout } from "./auth.js";
 import { startCatalogTour } from "./tour.js";
 
-const me = await requireAuth();
+const appRoot = document.getElementById("app");
+const isAuthenticated = appRoot?.dataset.authenticated === "true";
 
 const cart = createCart();
-let products = [];
+
+function readBootstrapProducts() {
+  try {
+    const el = document.getElementById("bootstrap-products");
+    const data = JSON.parse(el?.textContent || "[]");
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
+let products = readBootstrapProducts();
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -24,13 +36,10 @@ const cartCheckout   = $("#cart-checkout");
 const cartTotal      = $("#cart-total");
 const cartBadge      = $("#cart-badge");
 const btnCheckout    = $("#btn-checkout");
+const cartAuthGate   = $("#cart-auth-gate");
+const cartCheckoutNote = $("#cart-checkout-note");
 const toast          = $("#toast");
 const headerUserName     = $("#header-user-name");
-const headerUserNameText = $("#header-user-name-text");
-
-if (headerUserNameText && me?.user?.name) {
-  headerUserNameText.textContent = me.user.name;
-}
 
 // ── Formato ────────────────────────────────────────────────────────────────
 
@@ -93,8 +102,8 @@ function switchTab(tab) {
     btn.setAttribute("aria-current", active ? "page" : "false");
   });
 
-  if (tab === "orders") loadOrders();
-  if (tab === "profile") {
+  if (tab === "orders" && isAuthenticated) loadOrders();
+  if (tab === "profile" && isAuthenticated) {
     initProfile().then(() => {
       // invalidateSize después de que el panel sea visible en el DOM
       if (profileMap) setTimeout(() => profileMap.invalidateSize(), 100);
@@ -111,22 +120,31 @@ headerUserName?.addEventListener("click", () => switchTab("profile"));
 // ── Catálogo ───────────────────────────────────────────────────────────────
 
 async function loadProducts() {
-  catalogLoading.hidden = false;
-  catalogError.hidden = true;
+  if (catalogError) catalogError.hidden = true;
+  if (products.length) {
+    if (catalogLoading) catalogLoading.hidden = true;
+  } else if (catalogLoading) {
+    catalogLoading.hidden = false;
+  }
+
   try {
     const res = await fetch("/api/products", { credentials: "same-origin" });
     if (!res.ok) throw new Error(`Error ${res.status}`);
     products = await res.json();
-    catalogLoading.hidden = true;
+    if (catalogLoading) catalogLoading.hidden = true;
     renderCatalog();
   } catch (err) {
-    catalogLoading.hidden = true;
-    catalogError.hidden = false;
-    catalogError.textContent = `No se pudo cargar el catálogo: ${err.message}`;
+    if (catalogLoading) catalogLoading.hidden = true;
+    if (products.length) return;
+    if (catalogError) {
+      catalogError.hidden = false;
+      catalogError.textContent = `No se pudo cargar el catálogo: ${err.message}`;
+    }
   }
 }
 
 function renderCatalog() {
+  if (!catalogList) return;
   if (!products.length) {
     catalogList.innerHTML = "";
     catalogError.hidden = false;
@@ -167,7 +185,7 @@ function renderCatalog() {
   `).join("");
 }
 
-catalogList.addEventListener("click", (e) => {
+catalogList?.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-add]");
   if (!btn) return;
   const product = products.find((p) => p.id === Number(btn.dataset.add));
@@ -177,16 +195,24 @@ catalogList.addEventListener("click", (e) => {
   showToast(`${product.name} agregado (${unitType === "unit" ? "unidad" : "libra"})`);
 });
 
+const productsReady = loadProducts();
+
 // ── Carrito ────────────────────────────────────────────────────────────────
 
 function renderCart() {
+  if (!cartEmpty || !cartLines || !cartCheckout) return;
   const lines = cart.getLines();
   const empty = cart.isEmpty();
 
   cartEmpty.hidden = !empty;
   cartLines.hidden = empty;
   cartCheckout.hidden = empty;
-  btnCheckout.disabled = empty;
+  if (btnCheckout) {
+    btnCheckout.hidden = !isAuthenticated;
+    btnCheckout.disabled = empty || !isAuthenticated;
+  }
+  if (cartCheckoutNote) cartCheckoutNote.hidden = !isAuthenticated;
+  if (cartAuthGate) cartAuthGate.hidden = empty || isAuthenticated;
 
   if (empty) {
     cartLines.innerHTML = "";
@@ -250,12 +276,13 @@ function renderCart() {
 }
 
 function updateBadge() {
+  if (!cartBadge) return;
   const count = cart.itemCount;
   cartBadge.hidden = count === 0;
   if (count > 0) cartBadge.textContent = count > 99 ? "99+" : String(count);
 }
 
-cartLines.addEventListener("click", (e) => {
+cartLines?.addEventListener("click", (e) => {
   const inc = e.target.closest("[data-inc]");
   const dec = e.target.closest("[data-dec]");
   const rem = e.target.closest("[data-remove]");
@@ -284,12 +311,12 @@ function applyLbQuantity(input) {
 }
 
 // Aplicar cantidad al terminar de editar (evita perder el foco al escribir)
-cartLines.addEventListener("change", (e) => {
+cartLines?.addEventListener("change", (e) => {
   const input = e.target.closest("[data-qty]");
   if (input) applyLbQuantity(input);
 });
 
-cartLines.addEventListener("keydown", (e) => {
+cartLines?.addEventListener("keydown", (e) => {
   const input = e.target.closest("[data-qty]");
   if (!input) return;
   if (e.key === "Enter") {
@@ -298,7 +325,12 @@ cartLines.addEventListener("keydown", (e) => {
   }
 });
 
-btnCheckout.addEventListener("click", async () => {
+btnCheckout?.addEventListener("click", async () => {
+  if (!isAuthenticated) {
+    if (cartAuthGate) cartAuthGate.hidden = false;
+    showToast("Inicia sesión o crea una cuenta para realizar un pedido.");
+    return;
+  }
   if (cart.isEmpty()) return;
 
   btnCheckout.disabled = true;
@@ -356,6 +388,7 @@ const STATUS_LABELS = {
 let ordersLoaded = false;
 
 async function loadOrders() {
+  if (!isAuthenticated || !ordersLoading) return;
   if (ordersLoaded) return;
   ordersLoading.hidden = false;
   ordersEmpty.hidden = true;
@@ -442,16 +475,37 @@ const pCorregimiento = $("#p-corregimiento");
 const pLat  = $("#p-latitude");
 const pLng  = $("#p-longitude");
 
-const markerIcon = L.divIcon({
-  className: "",
-  html: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40">
+function createMarkerIcon() {
+  if (typeof L === "undefined") return null;
+  return L.divIcon({
+    className: "",
+    html: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40">
     <path d="M16 0C7.163 0 0 7.163 0 16c0 10.5 16 24 16 24s16-13.5 16-24C32 7.163 24.837 0 16 0z"
       fill="#0d9488" stroke="#fff" stroke-width="1.5"/>
     <circle cx="16" cy="16" r="6" fill="#fff"/>
   </svg>`,
-  iconSize: [32, 40],
-  iconAnchor: [16, 40],
-});
+    iconSize: [32, 40],
+    iconAnchor: [16, 40],
+  });
+}
+
+function loadLeaflet() {
+  if (typeof L !== "undefined") return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    if (!document.getElementById("leaflet-css")) {
+      const link = document.createElement("link");
+      link.id = "leaflet-css";
+      link.rel = "stylesheet";
+      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      document.head.appendChild(link);
+    }
+    const script = document.createElement("script");
+    script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("No se pudo cargar el mapa"));
+    document.head.appendChild(script);
+  });
+}
 
 function updateProfileCoords(latlng) {
   const lat = latlng.lat.toFixed(6);
@@ -462,11 +516,19 @@ function updateProfileCoords(latlng) {
 }
 
 async function initProfile() {
+  if (!document.getElementById("profile-map")) return;
+
   if (profileInitialized) {
-    // El mapa ya existe pero el div estuvo oculto; forzar re-render
     setTimeout(() => profileMap?.invalidateSize(), 100);
     return;
   }
+
+  try {
+    await loadLeaflet();
+  } catch {
+    return;
+  }
+
   profileInitialized = true;
 
   // Inicializar mapa
@@ -476,7 +538,7 @@ async function initProfile() {
     maxZoom: 19,
   }).addTo(profileMap);
 
-  profileMarker = L.marker(PANAMA_CENTER, { draggable: true, icon: markerIcon })
+  profileMarker = L.marker(PANAMA_CENTER, { draggable: true, icon: createMarkerIcon() })
     .addTo(profileMap);
 
   profileMarker.on("dragend", (e) => updateProfileCoords(e.target.getLatLng()));
@@ -558,7 +620,7 @@ $("#btn-replay-tour")?.addEventListener("click", () => {
 // ── Arranque ───────────────────────────────────────────────────────────────
 
 cart.subscribe(renderCart);
-loadProducts().then(() => {
-  startCatalogTour({ switchTab });
+productsReady.then(() => {
+  if (isAuthenticated) startCatalogTour({ switchTab });
 });
 renderCart();

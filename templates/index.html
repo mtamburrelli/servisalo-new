@@ -2,32 +2,14 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
+    <meta http-equiv="refresh" content="0; url=/catalog" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#0D0D0D" />
-    <meta name="description" content="ServiSalo — legumbres frescas para clientes registrados" />
     <title>ServiSalo</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}" />
+    <script>
+      window.location.replace("/catalog");
+    </script>
   </head>
-  <body class="page-gradient">
-    <main class="home">
-      <div class="home__center">
-        <h1 class="brand brand--hero">
-          <span class="brand-servi">Servi</span><span class="brand-salo">Salo</span>
-        </h1>
-        <p class="home__tagline">Adonde hay variedad de legumbres de la finca a la mesa</p>
-      </div>
-
-      <div class="home__actions">
-        <a class="btn btn--primary btn--uppercase" href="{{ url_for('login_page') }}">INGRESAR</a>
-        <a class="btn btn--outline-gold btn--uppercase" href="{{ url_for('register_page') }}">CREAR CUENTA</a>
-      </div>
-    </main>
+  <body>
+    <p><a href="/catalog">Ir al catálogo de legumbres</a></p>
   </body>
 </html>

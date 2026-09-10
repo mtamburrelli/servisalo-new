@@ -28,16 +28,77 @@
 .header {
   flex-shrink: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   position: relative;
-  height: var(--header-height);
-  padding: 0 16px;
+  min-height: var(--header-height);
+  padding: 8px 16px 10px;
   border-bottom: 1px solid rgba(212, 175, 55, 0.12);
+}
+
+.header__row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 100%;
+  min-height: 38px;
+}
+
+.header__tagline {
+  margin: 4px 0 0;
+  max-width: 320px;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.header__guest {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 2;
+}
+
+.header__login-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: var(--turquoise);
+  color: #0d0d0d;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.header__login-btn:hover {
+  background: var(--turquoise-dark);
+  color: #fff;
 }
 
 .header .brand {
   font-size: 1.5rem;
+}
+
+@media (max-width: 480px) {
+  .header__row {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .header__guest {
+    position: static;
+    transform: none;
+  }
 }
 
 .header__logout {
@@ -61,7 +122,7 @@
 
 .header__user {
   position: absolute;
-  right: 16px;
+  right: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -603,12 +664,51 @@
   cursor: not-allowed;
 }
 
+.cart-checkout .btn--primary[hidden] {
+  display: none !important;
+}
+
 .cart-checkout__note {
   margin: 0 0 14px;
   font-size: 0.75rem;
   color: var(--text-muted);
   text-align: center;
   line-height: 1.4;
+}
+
+.cart-checkout__note[hidden] {
+  display: none !important;
+}
+
+.guest-auth {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 360px;
+  margin: 24px auto 0;
+  padding: 8px 4px 24px;
+  text-align: center;
+}
+
+.guest-auth--checkout {
+  margin: 0 0 4px;
+  padding: 0;
+  max-width: none;
+}
+
+.guest-auth[hidden] {
+  display: none !important;
+}
+
+.guest-auth__text {
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.guest-auth .btn {
+  width: 100%;
 }
 
 .bottom-nav {
@@ -1039,6 +1139,11 @@
 }
 
 @media (min-width: 1024px) {
+  .header__tagline {
+    max-width: 480px;
+    font-size: 0.85rem;
+  }
+
   .catalog {
     grid-template-columns: repeat(4, 1fr);
     gap: 18px;

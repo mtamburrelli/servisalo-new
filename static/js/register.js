@@ -1,6 +1,6 @@
 import { redirectIfLoggedIn } from "./auth.js";
 
-redirectIfLoggedIn();
+redirectIfLoggedIn("/");
 
 const form        = document.getElementById("register-form");
 const errorEl     = document.getElementById("register-error");

@@ -1,6 +1,6 @@
 import { redirectIfLoggedIn } from "./auth.js";
 
-redirectIfLoggedIn();
+redirectIfLoggedIn("/");
 
 const form = document.getElementById("login-form");
 const errorEl = document.getElementById("login-error");
@@ -21,7 +21,7 @@ function clearMessages() {
   }
 }
 
-form.addEventListener("submit", async (e) => {
+form?.addEventListener("submit", async (e) => {
   e.preventDefault();
   clearMessages();
 
@@ -58,7 +58,7 @@ form.addEventListener("submit", async (e) => {
       return;
     }
 
-    window.location.href = "/catalog";
+    window.location.href = "/";
   } catch {
     showError("Error de conexión. Intenta de nuevo.");
   } finally {

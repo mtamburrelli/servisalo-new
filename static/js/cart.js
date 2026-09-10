@@ -1,4 +1,6 @@
-/** Estado del carrito en memoria. */
+/** Estado del carrito (memoria + localStorage para invitados). */
+
+const STORAGE_KEY = "servisalo_cart_v1";
 
 function linePrice(product, unitType) {
   return unitType === "unit" ? product.pricePerUnit : product.pricePerLb;
@@ -12,12 +14,42 @@ function normalizeQty(qty, unitType) {
   return Math.round(n * 100) / 100;
 }
 
+function persist(lines) {
+  try {
+    const data = [...lines.values()].map(({ product, qty, unitType }) => ({
+      product,
+      qty,
+      unitType,
+    }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch {
+    /* storage lleno o bloqueado */
+  }
+}
+
 export function createCart() {
   /** @type {Map<string, { product: object, qty: number, unitType: string }>} */
   const lines = new Map();
   const listeners = new Set();
 
+  try {
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    if (Array.isArray(stored)) {
+      for (const item of stored) {
+        const product = item?.product;
+        if (!product || product.id == null) continue;
+        const unitType = item.unitType === "unit" ? "unit" : "lb";
+        const qty = normalizeQty(item.qty, unitType);
+        if (qty <= 0) continue;
+        lines.set(`${product.id}-${unitType}`, { product, qty, unitType });
+      }
+    }
+  } catch {
+    /* JSON inválido */
+  }
+
   function notify() {
+    persist(lines);
     listeners.forEach((fn) => fn());
   }
 
