@@ -237,24 +237,23 @@ def register_admin_routes(app):
         if not products:
             return jsonify({"error": "No hay productos para actualizar."}), 400
 
-        updated = []
         skipped_zero = 0
         changed = 0
         for product in products:
-            # Precios en 0 se dejan igual; solo se multiplica lo que ya tiene valor
             if apply_to in ("both", "lb"):
-                if (product.price_per_lb or 0) > 0:
-                    product.price_per_lb = round(product.price_per_lb * multiplier, 2)
+                current_lb = float(product.price_per_lb or 0)
+                if current_lb > 0:
+                    product.price_per_lb = round(current_lb * multiplier, 2)
                     changed += 1
                 else:
                     skipped_zero += 1
             if apply_to in ("both", "unit"):
-                if (product.price_per_unit or 0) > 0:
-                    product.price_per_unit = round(product.price_per_unit * multiplier, 2)
+                current_unit = float(product.price_per_unit or 0)
+                if current_unit > 0:
+                    product.price_per_unit = round(current_unit * multiplier, 2)
                     changed += 1
                 else:
                     skipped_zero += 1
-            updated.append(product.to_admin_dict())
 
         if changed == 0:
             return jsonify({
@@ -262,11 +261,12 @@ def register_admin_routes(app):
             }), 400
 
         db.session.commit()
+        updated = [p.to_admin_dict() for p in Product.query.order_by(Product.name).all()]
         return jsonify({
             "ok": True,
             "multiplier": multiplier,
             "apply_to": apply_to,
-            "updated_count": len(updated),
+            "updated_count": len(products),
             "changed_prices": changed,
             "skipped_zero_prices": skipped_zero,
             "products": updated,

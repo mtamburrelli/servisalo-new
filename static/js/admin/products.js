@@ -16,14 +16,19 @@ const applyMultiplierBtn = document.getElementById("btn-apply-multiplier");
 const multiplierPreview = document.getElementById("price-multiplier-preview");
 
 let products = [];
+const savingRows = new Set();
+
+function thumbHtml(url) {
+  if (url) {
+    return `<img class="admin-product-thumb" src="${escapeHtml(url)}" alt="" />`;
+  }
+  return `<span class="admin-product-thumb admin-product-thumb--empty">—</span>`;
+}
 
 function renderRow(p) {
-  const img = p.image_url
-    ? `<img class="admin-product-thumb" src="${escapeHtml(p.image_url)}" alt="" />`
-    : `<span class="admin-product-thumb admin-product-thumb--empty">—</span>`;
   return `
     <tr data-id="${p.id}">
-      <td class="admin-table__center">${img}</td>
+      <td class="admin-table__center" data-thumb>${thumbHtml(p.image_url)}</td>
       <td>
         <input class="admin-inline-input admin-inline-input--name" style="width:160px;text-align:left"
           data-field="name" value="${escapeHtml(p.name)}" />
@@ -35,16 +40,15 @@ function renderRow(p) {
         <input class="admin-inline-input" type="number" min="0" step="0.01" data-field="price_per_unit" value="${p.price_per_unit}" />
       </td>
       <td>
-        <input class="admin-inline-input" style="width:220px;text-align:left"
+        <input class="admin-inline-input admin-inline-input--url" type="text"
           data-field="image_url" value="${escapeHtml(p.image_url || "")}"
-          placeholder="/static/images/products/nombre.jpg" />
+          placeholder="https://… o /static/images/products/foto.jpg" />
       </td>
       <td class="admin-table__center">
         <span class="badge badge--${p.is_active ? "active" : "inactive"}">${p.is_active ? "Activo" : "Inactivo"}</span>
       </td>
       <td class="admin-table__center">
         <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;">
-          <button type="button" class="admin-btn admin-btn--sm" data-save="${p.id}">Guardar</button>
           <button type="button" class="admin-btn admin-btn--sm ${p.is_active ? "admin-btn--danger" : "admin-btn--gold"}" data-toggle="${p.id}">
             ${p.is_active ? "Desactivar" : "Activar"}
           </button>
@@ -88,9 +92,9 @@ function describeMultiplier(value) {
   }
   const pct = Math.round(Math.abs(m - 1) * 1000) / 10;
   if (m > 1) {
-    return `Esto subirá los precios (>0) un ${pct}% (× ${m}). Los que estén en 0 se quedan en 0.`;
+    return `Esto subirá los precios mayores que 0 un ${pct}% (× ${m}). Los que estén en 0 se quedan en 0.`;
   }
-  return `Esto bajará los precios (>0) un ${pct}% (× ${m}). Los que estén en 0 se quedan en 0.`;
+  return `Esto bajará los precios mayores que 0 un ${pct}% (× ${m}). Los que estén en 0 se quedan en 0.`;
 }
 
 function updateMultiplierPreview() {
@@ -98,10 +102,14 @@ function updateMultiplierPreview() {
 }
 
 function rowPayload(row) {
-  const name = row.querySelector('[data-field="name"]').value.trim();
-  const pricePerLb = Number(row.querySelector('[data-field="price_per_lb"]').value);
-  const pricePerUnit = Number(row.querySelector('[data-field="price_per_unit"]').value);
-  const imageUrl = row.querySelector('[data-field="image_url"]').value.trim();
+  const nameEl = row.querySelector('[data-field="name"]');
+  const lbEl = row.querySelector('[data-field="price_per_lb"]');
+  const unitEl = row.querySelector('[data-field="price_per_unit"]');
+  const imgEl = row.querySelector('[data-field="image_url"]');
+  const name = nameEl?.value.trim() || "";
+  const pricePerLb = Number(lbEl?.value);
+  const pricePerUnit = Number(unitEl?.value);
+  const imageUrl = imgEl?.value.trim() || "";
   return {
     name,
     price_per_lb: pricePerLb,
@@ -110,8 +118,17 @@ function rowPayload(row) {
   };
 }
 
+function applySavedProduct(row, saved) {
+  if (!saved) return;
+  const idx = products.findIndex((p) => p.id === saved.id);
+  if (idx >= 0) products[idx] = saved;
+  const thumb = row.querySelector("[data-thumb]");
+  if (thumb) thumb.innerHTML = thumbHtml(saved.image_url);
+}
+
 async function saveRow(row, { silent = false } = {}) {
   const id = row.dataset.id;
+  if (!id) return;
   const payload = rowPayload(row);
   if (!payload.name) {
     throw new Error("El nombre no puede estar vacío.");
@@ -122,41 +139,50 @@ async function saveRow(row, { silent = false } = {}) {
   if (!Number.isFinite(payload.price_per_unit) || payload.price_per_unit < 0) {
     throw new Error("El precio por unidad debe ser ≥ 0.");
   }
-  await fetchJson(`/api/admin/products/${id}`, {
-    method: "PUT",
-    body: JSON.stringify(payload),
-  });
-  if (!silent) showToast("Producto actualizado.");
+  savingRows.add(id);
+  try {
+    const result = await fetchJson(`/api/admin/products/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+    applySavedProduct(row, result.product);
+    if (!silent) showToast("Producto actualizado.");
+  } finally {
+    savingRows.delete(id);
+  }
 }
 
-/** Persiste todas las filas visibles (inputs actuales → BD) antes del multiplicador. */
 async function saveAllVisibleRows() {
   const rows = [...tbody.querySelectorAll("tr[data-id]")];
   for (const row of rows) {
+    try {
+      await saveRow(row, { silent: true });
+    } catch {
+      /* se intenta el resto; el multiplicador usa lo ya guardado en BD */
+    }
+  }
+}
+
+async function autosaveFromEvent(e) {
+  const input = e.target.closest("[data-field]");
+  if (!input) return;
+  const row = input.closest("tr[data-id]");
+  if (!row) return;
+  try {
     await saveRow(row, { silent: true });
+    if (input.dataset.field === "image_url") {
+      const thumb = row.querySelector("[data-thumb]");
+      if (thumb) thumb.innerHTML = thumbHtml(input.value.trim());
+    }
+    showToast("Guardado.");
+  } catch (err) {
+    showToast(err.message || "No se pudo guardar.", "error");
   }
 }
 
 tbody.addEventListener("click", async (e) => {
-  const saveBtn2 = e.target.closest("[data-save]");
   const toggleBtn = e.target.closest("[data-toggle]");
   const deleteBtn = e.target.closest("[data-delete]");
-
-  if (saveBtn2) {
-    const id = saveBtn2.dataset.save;
-    const row = tbody.querySelector(`tr[data-id="${id}"]`);
-    saveBtn2.disabled = true;
-    saveBtn2.textContent = "Guardando…";
-    try {
-      await saveRow(row);
-      await loadProducts();
-    } catch (err) {
-      showToast(err.message || "No se pudo guardar.", "error");
-    } finally {
-      saveBtn2.disabled = false;
-      saveBtn2.textContent = "Guardar";
-    }
-  }
 
   if (toggleBtn) {
     const id = toggleBtn.dataset.toggle;
@@ -193,22 +219,8 @@ tbody.addEventListener("click", async (e) => {
   }
 });
 
-// Auto-guardar al salir del campo
-tbody.addEventListener(
-  "change",
-  debounce(async (e) => {
-    const input = e.target.closest("[data-field]");
-    if (!input) return;
-    const row = input.closest("tr[data-id]");
-    if (!row) return;
-    try {
-      await saveRow(row, { silent: true });
-      showToast("Guardado.");
-    } catch (err) {
-      showToast(err.message || "No se pudo guardar.", "error");
-    }
-  }, 400)
-);
+tbody.addEventListener("input", debounce(autosaveFromEvent, 700));
+tbody.addEventListener("change", autosaveFromEvent);
 
 searchInput.addEventListener("input", debounce(loadProducts, 300));
 
@@ -236,7 +248,7 @@ applyMultiplierBtn.addEventListener("click", async () => {
   const activeLabel = onlyActive ? "solo productos activos" : "todos los productos";
 
   const ok = window.confirm(
-    `${describeMultiplier(multiplier)}\n\nPrimero se guardarán los precios editados en la tabla.\nLuego se actualizarán ${scopeLabel} de ${activeLabel}.\n\n¿Continuar?`
+    `${describeMultiplier(multiplier)}\n\nSe actualizarán ${scopeLabel} de ${activeLabel}.\nLos precios en 0 no cambian.\n\n¿Continuar?`
   );
   if (!ok) return;
 

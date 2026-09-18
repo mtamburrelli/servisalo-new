@@ -15,9 +15,9 @@
   </div>
   <div class="price-multiplier">
     <p class="price-multiplier__hint">
-      Edita precios e imagen en la tabla (se guardan al salir del campo o con <strong>Guardar</strong>).
+      Los cambios de nombre, precios y URL de imagen se <strong>guardan solos</strong> al escribir.
       Multiplicador: <strong>1.10</strong> = +10% · <strong>0.90</strong> = −10%.
-      Los precios en <strong>0</strong> no se tocan; el resto sí se multiplica.
+      Los precios en <strong>0</strong> se quedan en 0; el resto se multiplica.
     </p>
     <div class="price-multiplier__row">
       <label class="field">
@@ -124,5 +124,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script type="module" src="{{ url_for('static', filename='js/admin/products.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/admin/products.js') }}?v=7"></script>
 {% endblock %}

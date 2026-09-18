@@ -86,7 +86,7 @@ class Product(db.Model):
     name = db.Column(db.String(100), nullable=False)
     price_per_unit = db.Column(db.Float, nullable=False)
     price_per_lb = db.Column(db.Float, nullable=False)
-    image_url = db.Column(db.String(300))
+    image_url = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=True)
 
     def to_dict(self):

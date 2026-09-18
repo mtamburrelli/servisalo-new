@@ -367,6 +367,22 @@ def _ensure_user_auth_columns():
             )
 
 
+def _ensure_product_image_url_column():
+    """Permite URLs largas (Unsplash, etc.) para la foto del catálogo."""
+    from sqlalchemy import text
+
+    if not _table_exists("products"):
+        return
+    cols = _existing_columns("products")
+    dialect = db.engine.dialect.name
+    with db.engine.begin() as conn:
+        if "image_url" not in cols:
+            col = "TEXT" if dialect == "postgresql" else "TEXT"
+            conn.execute(text(f"ALTER TABLE products ADD COLUMN image_url {col}"))
+        elif dialect == "postgresql":
+            conn.execute(text("ALTER TABLE products ALTER COLUMN image_url TYPE TEXT"))
+
+
 def init_db():
     db.create_all()
     if db.engine.dialect.name == "sqlite" and _table_exists("users"):
@@ -381,6 +397,7 @@ def init_db():
             if "created_at" not in cols:
                 conn.execute(text("ALTER TABLE users ADD COLUMN created_at DATETIME"))
     _ensure_user_auth_columns()
+    _ensure_product_image_url_column()
     seed_catalog()
 
 
